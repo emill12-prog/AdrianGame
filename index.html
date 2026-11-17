@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>body{margin:0}</style>
+<title>Phaser Playroom</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;700&display=swap">
+<style>
+  /* Layout: a play stage on the left, a shelf of games on the right, and a how-to-add-a-game strip below. */
+  :root {
+    --bg: #eef1f6;
+    --panel: #ffffff;
+    --fg: #141a2a;
+    --muted: #5b6478;
+    --line: #d5dbe7;
+    --accent: #2f5bea;
+    --accent-fg: #ffffff;
+    --code-bg: #e4e9f2;
+    --stage: #121826;
+    --font-display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+    --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e121c;
+      --panel: #171d2c;
+      --fg: #e6ebf7;
+      --muted: #97a1b8;
+      --line: #2a3347;
+      --accent: #86a4ff;
+      --accent-fg: #0e121c;
+      --code-bg: #0b0f18;
+      --stage: #0a0e18;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e121c;
+    --panel: #171d2c;
+    --fg: #e6ebf7;
+    --muted: #97a1b8;
+    --line: #2a3347;
+    --accent: #86a4ff;
+    --accent-fg: #0e121c;
+    --code-bg: #0b0f18;
+    --stage: #0a0e18;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.55;
+    padding-block: 28px 48px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+
+  header { display: flex; flex-direction: column; gap: 4px; }
+  h1 { font-family: var(--font-display); font-weight: 700; font-size: 2rem; letter-spacing: -0.02em; margin: 0; text-wrap: balance; }
+  header p { margin: 0; color: var(--muted); max-width: 62ch; }
+
+  .play { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 20px; align-items: start; }
+  @media (max-width: 800px) { .play { grid-template-columns: minmax(0, 1fr); } }
+
+  .stage-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  #stage {
+    width: 100%;
+    aspect-ratio: 8 / 5;
+    background: var(--stage);
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid var(--line);
+  }
+  #stage canvas { display: block; }
+
+  .now { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; }
+  .now h2 { font-family: var(--font-display); font-size: 1.25rem; margin: 0; letter-spacing: -0.01em; }
+  .now .controls { font-family: var(--font-mono); font-size: 0.8rem; color: var(--muted); }
+  .now-blurb { margin: 0; color: var(--muted); }
+  .bar { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  button {
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+  }
+  button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .btn {
+    background: var(--accent);
+    color: var(--accent-fg);
+    border: 0;
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-weight: 600;
+    font-size: 0.875rem;
+  }
+  .btn.ghost { background: transparent; color: var(--fg); border: 1px solid var(--line); }
+
+  .shelf { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  .shelf h3 { font-family: var(--font-display); font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin: 0; }
+  .game {
+    text-align: left;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .game strong { font-family: var(--font-display); font-size: 1rem; }
+  .game span { color: var(--muted); font-size: 0.85rem; }
+  .game[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+  .empty-slot {
+    border: 1px dashed var(--line);
+    border-radius: 6px;
+    padding: 12px 14px;
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+
+  .adding { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 20px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 24px; }
+  @media (max-width: 800px) { .adding { grid-template-columns: minmax(0, 1fr); } }
+  .adding h2 { font-family: var(--font-display); font-size: 1.15rem; margin: 0 0 8px; }
+  .adding ul { margin: 0; padding-left: 1.1rem; color: var(--muted); display: flex; flex-direction: column; gap: 6px; }
+  .adding li strong { color: var(--fg); font-weight: 600; }
+  .code-box { position: relative; min-width: 0; }
+  pre {
+    margin: 0;
+    background: var(--code-bg);
+    border-radius: 6px;
+    padding: 14px;
+    overflow-x: auto;
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    line-height: 1.6;
+  }
+  .copy { position: absolute; top: 8px; right: 8px; padding: 4px 10px; font-size: 0.75rem; }
+  @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.80.1/phaser.min.js"></script>
+
+<div class="wrap">
+  <header>
+    <h1>Phaser Playroom</h1>
+    <p>A small home for browser games built with Phaser. Pick a game, play it here, and add new ones whenever you have an idea.</p>
+  </header>
+
+  <section class="play" aria-label="Games">
+    <div class="stage-col">
+      <div id="stage" role="application" aria-label="Game area"></div>
+      <div class="now">
+        <h2 id="now-title"></h2>
+        <span class="controls" id="now-controls"></span>
+      </div>
+      <p class="now-blurb" id="now-blurb"></p>
+      <div class="bar"><button class="btn" id="restart" type="button">Restart</button></div>
+    </div>
+    <div class="shelf">
+      <h3>Game shelf</h3>
+      <div id="shelf" style="display:flex;flex-direction:column;gap:10px"></div>
+      <div class="empty-slot">Room for your next game. Tell Claude the idea and it gets added here.</div>
+    </div>
+  </section>
+
+  <section class="adding" aria-label="Adding a game">
+    <div>
+      <h2>Adding a game</h2>
+      <ul>
+        <li><strong>One game, one scene.</strong> Each game is a Phaser scene registered with <code>registerGame</code>.</li>
+        <li><strong>Everything draws from code.</strong> The starters build their art with shapes, so there are no image files to manage.</li>
+        <li><strong>The shelf updates itself.</strong> A registered game gets its own button and a link you can share, like <code>#my-game</code>.</li>
+      </ul>
+    </div>
+    <div class="code-box">
+      <button class="btn ghost copy" id="copy" type="button">Copy</button>
+<pre id="template">registerGame({
+  id: 'my-game',            // letters, digits and hyphens
+  title: 'My Game',
+  blurb: 'One line about how it plays.',
+  controls: 'Arrow keys to move',
+  scene: class MyGame extends Phaser.Scene {
+    create() {
+      this.player = this.add.rectangle(320, 200, 32, 32, 0x86a4ff);
+      this.cursors = this.input.keyboard.createCursorKeys();
+    }
+    update(time, delta) {
+      const dt = delta / 1000;
+      if (this.cursors.left.isDown)  this.player.x -= 240 * dt;
+      if (this.cursors.right.isDown) this.player.x += 240 * dt;
+    }
+  }
+});</pre>
+    </div>
+  </section>
+</div>
+
+<script>
+  /* ---------- Playroom engine ---------- */
+  const GAMES = [];
+  function registerGame(def) { GAMES.push(def); }
+
+  const W = 640, H = 400;
+  const TEXT = { fontFamily: 'system-ui, sans-serif', fontSize: '20px', color: '#e6ebf7' };
+  let phaserGame = null;
+  let currentId = null;
+
+  function $(id) { return document.getElementById(id); }
+
+  function start(id) {
+    const def = GAMES.find(function (g) { return g.id === id; }) || GAMES[0];
+    if (!def) return;
+    currentId = def.id;
+    if (phaserGame) { phaserGame.destroy(true); phaserGame = null; }
+    phaserGame = new Phaser.Game({
+      type: Phaser.AUTO,
+      parent: 'stage',
+      width: W,
+      height: H,
+      backgroundColor: '#121826',
+      scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
+      scene: def.scene
+    });
+    $('now-title').textContent = def.title;
+    $('now-controls').textContent = def.controls || '';
+    $('now-blurb').textContent = def.blurb || '';
+    document.querySelectorAll('.game').forEach(function (b) {
+      b.setAttribute('aria-pressed', b.dataset.id === def.id ? 'true' : 'false');
+    });
+  }
+
+  function select(id) {
+    if (location.hash.slice(1) !== id) { location.hash = id; } else { start(id); }
+  }
+
+  function buildShelf() {
+    const shelf = $('shelf');
+    shelf.innerHTML = '';
+    GAMES.forEach(function (g) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'game';
+      b.dataset.id = g.id;
+      b.setAttribute('aria-pressed', 'false');
+      const t = document.createElement('strong'); t.textContent = g.title;
+      const s = document.createElement('span'); s.textContent = g.blurb;
+      b.appendChild(t); b.appendChild(s);
+      b.addEventListener('click', function () { select(g.id); });
+      shelf.appendChild(b);
+    });
+  }
+
+  /* ================= GAMES =================
+     Add new games below this line, each as its own registerGame call. */
+
+  /* ---- Star Catcher ---- */
+  registerGame({
+    id: 'star-catcher',
+    title: 'Star Catcher',
+    blurb: 'Slide the paddle to catch falling stars. Missed stars and bombs cost a life.',
+    controls: 'Arrows or mouse / touch',
+    scene: class StarCatcher extends Phaser.Scene {
+      create() {
+        if (!this.textures.exists('sc-star')) {
+          const g = this.make.graphics({ x: 0, y: 0, add: false });
+          const pts = [];
+          for (let i = 0; i < 10; i++) {
+            const r = i % 2 ? 6 : 14;
+            const a = -Math.PI / 2 + i * Math.PI / 5;
+            pts.push({ x: 14 + Math.cos(a) * r, y: 14 + Math.sin(a) * r });
+          }
+          g.fillStyle(0xf2b600, 1); g.fillPoints(pts, true); g.generateTexture('sc-star', 28, 28); g.clear();
+          g.fillStyle(0xe85d75, 1); g.fillCircle(11, 11, 11); g.generateTexture('sc-bomb', 22, 22); g.clear();
+          g.fillStyle(0x8fb4ff, 1); g.fillRoundedRect(0, 0, 96, 14, 7); g.generateTexture('sc-paddle', 96, 14);
+          g.destroy();
+        }
+        this.score = 0; this.lives = 3; this.items = []; this.over = false; this.spawnIn = 0.4; this.elapsed = 0;
+        this.paddle = this.add.image(W / 2, H - 30, 'sc-paddle');
+        this.scoreText = this.add.text(16, 12, '', TEXT);
+        this.livesText = this.add.text(W - 16, 12, '', TEXT).setOrigin(1, 0);
+        this.msg = this.add.text(W / 2, H / 2, '', Object.assign({}, TEXT, { fontSize: '26px', align: 'center' })).setOrigin(0.5).setVisible(false);
+        this.cursors = this.input.keyboard.createCursorKeys();
+        this.spaceKey = this.input.keyboard.addKey('SPACE');
+        this.input.on('pointermove', (p) => { if (!this.over) this.paddle.x = Phaser.Math.Clamp(p.x, 48, W - 48); });
+        this.input.on('pointerdown', () => { if (this.over) this.scene.restart(); });
+        this.hud();
+      }
+      hud() {
+        this.scoreText.setText('Stars ' + this.score);
+        this.livesText.setText('Lives ' + this.lives);
+      }
+      loseLife() {
+        this.lives--;
+        this.cameras.main.shake(120, 0.006);
+        this.hud();
+        if (this.lives <= 0) {
+          this.over = true;
+          this.msg.setText('Game over\nStars caught: ' + this.score + '\nClick or press Space to play again').setVisible(true);
+        }
+      }
+      update(time, delta) {
+        if (this.over) {
+          if (Phaser.Input.Keyboard.JustDown(this.spaceKey)) this.scene.restart();
+          return;
+        }
+        const dt = delta / 1000;
+        this.elapsed += dt;
+        if (this.cursors.left.isDown) this.paddle.x -= 380 * dt;
+        if (this.cursors.right.isDown) this.paddle.x += 380 * dt;
+        this.paddle.x = Phaser.Math.Clamp(this.paddle.x, 48, W - 48);
+
+        this.spawnIn -= dt;
+        if (this.spawnIn <= 0) {
+          this.spawnIn = Math.max(0.35, 0.9 - this.elapsed * 0.012);
+          const bomb = Math.random() < 0.2;
+          const s = this.add.image(Phaser.Math.Between(20, W - 20), -20, bomb ? 'sc-bomb' : 'sc-star');
+          s.isBomb = bomb;
+          s.speed = 140 + this.elapsed * 3 + Math.random() * 60;
+          this.items.push(s);
+        }
+
+        const pb = this.paddle.getBounds();
+        for (let i = this.items.length - 1; i >= 0; i--) {
+          const s = this.items[i];
+          s.y += s.speed * dt;
+          if (!s.isBomb) s.rotation += dt * 2;
+          if (Phaser.Geom.Intersects.RectangleToRectangle(pb, s.getBounds())) {
+            this.items.splice(i, 1); s.destroy();
+            if (s.isBomb) { this.loseLife(); } else { this.score++; this.hud(); }
+          } else if (s.y > H + 20) {
+            this.items.splice(i, 1); s.destroy();
+            if (!s.isBomb) this.loseLife();
+          }
+          if (this.over) break;
+        }
+      }
+    }
+  });
+
+  /* ---- Pipe Hop ---- */
+  registerGame({
+    id: 'pipe-hop',
+    title: 'Pipe Hop',
+    blurb: 'Hop the ball through the gaps. Each pipe you clear scores a point.',
+    controls: 'Space or tap to hop',
+    scene: class PipeHop extends Phaser.Scene {
+      create() {
+        this.ball = this.add.circle(150, H / 2, 12, 0xf2b600);
+        this.vy = 0; this.pipes = []; this.score = 0; this.over = false; this.dead = false; this.spawnIn = 0.6; this.deadAt = 0;
+        this.scoreText = this.add.text(W / 2, 14, '0', Object.assign({}, TEXT, { fontSize: '30px' })).setOrigin(0.5, 0).setDepth(5);
+        this.msg = this.add.text(W / 2, H / 2, 'Press Space or tap to start', Object.assign({}, TEXT, { fontSize: '24px', align: 'center' })).setOrigin(0.5).setDepth(5);
+        this.started = false;
+        this.spaceKey = this.input.keyboard.addKey('SPACE');
+        this.input.on('pointerdown', () => this.flap());
+      }
+      flap() {
+        if (this.dead) {
+          if (this.time.now - this.deadAt > 350) this.scene.restart();
+          return;
+        }
+        if (!this.started) { this.started = true; this.msg.setVisible(false); }
+        this.vy = -380;
+      }
+      die() {
+        this.dead = true; this.deadAt = this.time.now;
+        this.cameras.main.shake(120, 0.006);
+        this.msg.setText('Game over\nScore ' + this.score + '\nTap or press Space to try again').setVisible(true);
+      }
+      update(time, delta) {
+        if (Phaser.Input.Keyboard.JustDown(this.spaceKey)) this.flap();
+        if (this.dead || !this.started) return;
+        const dt = delta / 1000;
+        this.vy += 1400 * dt;
+        this.ball.y += this.vy * dt;
+
+        this.spawnIn -= dt;
+        if (this.spawnIn <= 0) {
+          this.spawnIn = 1.5;
+          const gap = 135;
+          const center = Phaser.Math.Between(110, H - 110);
+          const topH = center - gap / 2;
+          const botH = H - (center + gap / 2);
+          const top = this.add.rectangle(W + 30, topH / 2, 56, topH, 0x8fb4ff);
+          const bot = this.add.rectangle(W + 30, H - botH / 2, 56, botH, 0x8fb4ff);
+          this.pipes.push({ top: top, bot: bot, scored: false });
+        }
+
+        const bb = new Phaser.Geom.Rectangle(this.ball.x - 10, this.ball.y - 10, 20, 20);
+        for (let i = this.pipes.length - 1; i >= 0; i--) {
+          const p = this.pipes[i];
+          p.top.x -= 200 * dt; p.bot.x -= 200 * dt;
+          if (!p.scored && p.top.x < this.ball.x - 28) { p.scored = true; this.score++; this.scoreText.setText(String(this.score)); }
+          if (Phaser.Geom.Intersects.RectangleToRectangle(bb, p.top.getBounds()) ||
+              Phaser.Geom.Intersects.RectangleToRectangle(bb, p.bot.getBounds())) { this.die(); return; }
+          if (p.top.x < -40) { p.top.destroy(); p.bot.destroy(); this.pipes.splice(i, 1); }
+        }
+        if (this.ball.y < 12 || this.ball.y > H - 12) this.die();
+      }
+    }
+  });
+
+  /* ================= END GAMES ================= */
+
+  buildShelf();
+  window.addEventListener('hashchange', function () { start(location.hash.slice(1)); });
+  start(location.hash.slice(1));
+
+  $('restart').addEventListener('click', function () { start(currentId); });
+  $('copy').addEventListener('click', function () {
+    const text = $('template').textContent;
+    const done = function () { $('copy').textContent = 'Copied'; setTimeout(function () { $('copy').textContent = 'Copy'; }, 1500); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () {
+        const r = document.createRange(); r.selectNodeContents($('template'));
+        const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+      });
+    } else {
+      const r = document.createRange(); r.selectNodeContents($('template'));
+      const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+    }
+  });
+</script>
+
+</body>
+</html>
